@@ -1,5 +1,6 @@
-// Pure parsing/matching logic, shared by the browser bundle and Node tests.
-export const DEFAULTS = Object.freeze({ left: 'Mod+B', right: 'Mod+Shift+B' });
+// Pure parsing/matching/recording logic, shared by the browser bundle and tests.
+export const DEFAULTS = Object.freeze({ left: 'Mod+B', right: 'Mod+Shift+B', settings: 'Mod+Comma' });
+export const ACTIONS = Object.freeze(['left', 'right', 'settings']);
 
 const MODIFIERS = new Map([
   ['mod', 'mod'], ['ctrl', 'ctrl'], ['control', 'ctrl'],
@@ -11,10 +12,11 @@ const NAMED_KEYS = new Map([
   ['arrowleft', 'ArrowLeft'], ['arrowright', 'ArrowRight'],
   ['arrowup', 'ArrowUp'], ['arrowdown', 'ArrowDown'],
   ['home', 'Home'], ['end', 'End'], ['pageup', 'PageUp'], ['pagedown', 'PageDown'],
+  [',', 'Comma'], ['comma', 'Comma'],
 ]);
 
 export function parseShortcut(text, isMac = false) {
-  if (typeof text !== 'string') throw new Error('Enter a keyboard combination.');
+  if (typeof text !== 'string') throw new Error('Choose a keyboard combination.');
   if (!text.trim()) return null;
   const parts = text.split('+').map((part) => part.trim().toLowerCase());
   const keyToken = parts.pop();
@@ -30,9 +32,9 @@ export function parseShortcut(text, isMac = false) {
   const key = /^[a-z0-9]$/.test(keyToken) ? keyToken.toUpperCase()
     : /^f([1-9]|1[0-9]|2[0-4])$/.test(keyToken) ? keyToken.toUpperCase()
       : NAMED_KEYS.get(keyToken);
-  if (!key) throw new Error('Use a letter, digit, F1–F24, Space, Enter, Escape or a navigation key.');
+  if (!key) throw new Error('Use a letter, digit, comma, F1–F24, Space, Enter, Escape or a navigation key.');
   if (!modifiers.has('mod') && !modifiers.has('ctrl') && !modifiers.has('meta') && !modifiers.has('alt')) {
-    throw new Error('Include Mod, Ctrl, Cmd or Alt so typing is not intercepted.');
+    throw new Error('Include Ctrl, Command or Alt so ordinary typing is not intercepted.');
   }
   const ctrl = modifiers.has('ctrl') || (modifiers.has('mod') && !isMac);
   const meta = modifiers.has('meta') || (modifiers.has('mod') && isMac);
@@ -47,43 +49,61 @@ export function parseShortcut(text, isMac = false) {
 }
 
 export function validateBindings(values, isMac = false) {
-  const left = parseShortcut(values.left, isMac);
-  const right = parseShortcut(values.right, isMac);
-  if (left && right && left.signature === right.signature) throw new Error('Choose a different combination for each sidebar.');
-  return { left: left?.text ?? '', right: right?.text ?? '' };
+  const result = {};
+  const signatures = new Set();
+  for (const action of ACTIONS) {
+    const parsed = parseShortcut(values[action] ?? (action === 'settings' ? DEFAULTS.settings : undefined), isMac);
+    if (parsed && signatures.has(parsed.signature)) throw new Error('Choose a different combination for each action.');
+    if (parsed) signatures.add(parsed.signature);
+    result[action] = parsed?.text ?? '';
+  }
+  return result;
+}
+
+export function eventKey(event) {
+  let key = event.key === ' ' ? 'Space' : event.key?.length === 1 ? event.key.toUpperCase() : event.key;
+  // Recover letters/digits/comma when Shift or Option produces a symbol/dead key.
+  if ((event.shiftKey || event.altKey) && !/^[A-Z0-9]$/.test(key ?? '')) {
+    if (/^Key[A-Z]$/.test(event.code ?? '')) key = event.code.slice(3);
+    else if (/^Digit[0-9]$/.test(event.code ?? '')) key = event.code.slice(5);
+    else if (event.code === 'Comma') key = 'Comma';
+  }
+  return key === ',' ? 'Comma' : key;
+}
+
+export function recordShortcut(event, isMac = false) {
+  if (event.repeat || event.isComposing || event.keyCode === 229 || event.getModifierState?.('AltGraph')) return null;
+  if (['Control', 'Meta', 'Alt', 'Shift', 'AltGraph'].includes(event.key)) return null;
+  const modifiers = [];
+  if (event.ctrlKey) modifiers.push('Ctrl');
+  if (event.metaKey) modifiers.push('Cmd');
+  if (event.altKey) modifiers.push('Alt');
+  if (event.shiftKey) modifiers.push('Shift');
+  return parseShortcut([...modifiers, eventKey(event)].join('+'), isMac).text;
+}
+
+export function displayShortcut(text, isMac = false) {
+  if (!text) return 'Disabled';
+  return text.split('+').map((part) => part === 'Mod' ? (isMac ? 'Cmd' : 'Ctrl') : part === 'Comma' ? ',' : part).join(' + ');
 }
 
 export function matchesShortcut(event, shortcut, allowRepeat = false) {
   if (!shortcut || (event.repeat && !allowRepeat) || event.isComposing || event.keyCode === 229
     || event.defaultPrevented || event.getModifierState?.('AltGraph')) return false;
-  const key = event.key === ' ' ? 'Space' : event.key?.length === 1 ? event.key.toUpperCase() : event.key;
-  // Shift+digits and macOS Option can replace the logical key with a symbol
-  // (e.g. ! or ®). Recover the physical ASCII key only for those transforms;
-  // ordinary alphabetic layout mappings still use the logical key.
-  const transformed = (shortcut.shift || shortcut.alt) && !/^[A-Z0-9]$/.test(key ?? '');
-  const physical = /^[A-Z]$/.test(shortcut.key) ? `Key${shortcut.key}`
-    : /^[0-9]$/.test(shortcut.key) ? `Digit${shortcut.key}` : null;
-  const keyMatches = key === shortcut.key || (transformed && physical !== null && event.code === physical);
-  return keyMatches && Boolean(event.ctrlKey) === shortcut.ctrl
+  return eventKey(event) === shortcut.key && Boolean(event.ctrlKey) === shortcut.ctrl
     && Boolean(event.metaKey) === shortcut.meta && Boolean(event.altKey) === shortcut.alt
     && Boolean(event.shiftKey) === shortcut.shift;
 }
 
 // Return false for unavailable actions: do not swallow a browser shortcut then.
 export function createShortcutHandler(bindings, actions, isMac = false) {
-  const parsed = {
-    left: parseShortcut(bindings.left, isMac),
-    right: parseShortcut(bindings.right, isMac),
-  };
+  const parsed = Object.fromEntries(ACTIONS.map((action) => [action, parseShortcut(bindings[action] ?? DEFAULTS[action], isMac)]));
   let lastHandled = null;
   return (event) => {
-    for (const side of ['left', 'right']) {
-      if (!matchesShortcut(event, parsed[side], true)) continue;
-      // A held shortcut should not retrigger the toggle OR leak its repeated
-      // browser default (e.g. the bookmarks bar). Only consume repeats of an
-      // initial press that this handler successfully handled.
-      const handled = event.repeat ? lastHandled === side : actions[side]() !== false;
-      lastHandled = handled ? side : null;
+    for (const action of ACTIONS) {
+      if (!matchesShortcut(event, parsed[action], true)) continue;
+      const handled = event.repeat ? lastHandled === action : typeof actions[action] === 'function' && actions[action]() !== false;
+      lastHandled = handled ? action : null;
       if (handled) {
         event.preventDefault();
         event.stopPropagation();

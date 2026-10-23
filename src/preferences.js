@@ -8,7 +8,12 @@ export function decodePreferences(raw, isMac = false) {
   try {
     const value = JSON.parse(raw);
     if (value.version !== 1) return { ...DEFAULTS };
-    return validateBindings({ left: value.left, right: value.right }, isMac);
+    const previous = { left: value.left, right: value.right };
+    if (Object.hasOwn(value, 'settings')) return validateBindings({ ...previous, settings: value.settings }, isMac);
+    // v0.1.0 records had only sidebars. Keep them intact; if a user already
+    // assigned Mod+Comma to a sidebar, leave the new Settings action disabled.
+    try { return validateBindings({ ...previous, settings: DEFAULTS.settings }, isMac); }
+    catch { return validateBindings({ ...previous, settings: '' }, isMac); }
   } catch {
     return { ...DEFAULTS };
   }

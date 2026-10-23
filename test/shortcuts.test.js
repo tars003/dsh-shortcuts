@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULTS, parseShortcut, validateBindings, matchesShortcut, createShortcutHandler } from '../src/shortcuts.js';
+import { DEFAULTS, parseShortcut, validateBindings, matchesShortcut, createShortcutHandler, recordShortcut, displayShortcut } from '../src/shortcuts.js';
 import { decodePreferences, loadPreferences, savePreferences, STORAGE_KEY } from '../src/preferences.js';
 
 function key(overrides = {}) {
@@ -33,7 +33,7 @@ test('rejects unsafe or malformed bindings', () => {
 test('rejects equivalent duplicates after platform resolution', () => {
   assert.throws(() => validateBindings({ left: 'Mod+B', right: 'Ctrl+B' }));
   assert.throws(() => validateBindings({ left: 'Mod+B', right: 'Cmd+B' }, true));
-  assert.deepEqual(validateBindings({ left: '', right: '' }), { left: '', right: '' });
+  assert.deepEqual(validateBindings({ left: '', right: '', settings: '' }), { left: '', right: '', settings: '' });
   assert.deepEqual(validateBindings(DEFAULTS), DEFAULTS);
 });
 
@@ -80,10 +80,29 @@ test('storage round-trip and canonical values', () => {
   const map = new Map();
   const storage = { getItem: (key) => map.get(key), setItem: (key, value) => map.set(key, value) };
   assert.deepEqual(loadPreferences(storage), DEFAULTS);
-  const expected = { left: 'Alt+L', right: '' };
+  const expected = { left: 'Alt+L', right: '', settings: DEFAULTS.settings };
   assert.deepEqual(savePreferences(storage, { left: 'alt+l', right: '' }), expected);
   assert.equal(JSON.parse(map.get(STORAGE_KEY)).version, 1);
   assert.deepEqual(loadPreferences(storage), expected);
+});
+
+test('records actual key presses, including comma, shifted digits and Option symbols', () => {
+  assert.equal(recordShortcut(key({ key: ',', code: 'Comma' })), 'Ctrl+Comma');
+  assert.equal(recordShortcut(key({ key: ',', code: 'Comma', ctrlKey: false, metaKey: true }), true), 'Cmd+Comma');
+  assert.equal(recordShortcut(key({ key: '!', code: 'Digit1', shiftKey: true })), 'Ctrl+Shift+1');
+  assert.equal(recordShortcut(key({ key: '®', code: 'KeyR', ctrlKey: false, altKey: true }), true), 'Alt+R');
+  for (const overrides of [{ key: 'Control' }, { repeat: true }, { isComposing: true }, { getModifierState: () => true }]) assert.equal(recordShortcut(key(overrides)), null);
+  assert.throws(() => recordShortcut(key({ ctrlKey: false })));
+  assert.equal(displayShortcut(DEFAULTS.settings), 'Ctrl + ,');
+  assert.equal(displayShortcut(DEFAULTS.settings, true), 'Cmd + ,');
+  assert.equal(displayShortcut(''), 'Disabled');
+});
+
+test('old records preserve customized sidebars and avoid conflicts with new Settings default', () => {
+  assert.deepEqual(decodePreferences(JSON.stringify({ version: 1, left: 'Alt+L', right: '' })), { left: 'Alt+L', right: '', settings: 'Mod+Comma' });
+  assert.deepEqual(decodePreferences(JSON.stringify({ version: 1, left: 'Ctrl+,', right: '' })), { left: 'Ctrl+Comma', right: '', settings: '' });
+  assert.throws(() => validateBindings({ left: 'Ctrl+,', right: '', settings: 'Mod+Comma' }));
+  assert.equal(matchesShortcut(key({ key: ',', code: 'Comma' }), parseShortcut(DEFAULTS.settings)), true);
 });
 
 test('storage failures or corrupted/unknown records fall back without throwing', () => {

@@ -1,7 +1,7 @@
 {
   "name": "dsh-shortcuts",
-  "version": "0.1.0",
-  "description": "Configurable keyboard shortcuts for the left and right sidebars in DeepSeek Harness.",
+  "version": "0.2.0",
+  "description": "Record keyboard shortcuts for sidebars and Settings in DeepSeek Harness.",
   "type": "module",
   "license": "MIT",
   "repository": {
@@ -22,7 +22,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "test": "node --test",
-    "check": "node --check src/client.js && node --check src/shortcuts.js && node --check src/preferences.js && node --check src/index.js && node --check scripts/build.mjs",
+    "check": "node --check src/client.js && node --check src/shortcuts.js && node --check src/preferences.js && node --check src/settings.js && node --check src/index.js && node --check scripts/build.mjs",
     "prepack": "npm run check && npm test && npm run build"
   },
   "dsh": {

@@ -4,7 +4,7 @@ import { readFile, mkdir, writeFile } from 'node:fs/promises';
 // Keep lib/client.js in Git so installation from GitHub works without prepare.
 const root = new URL('../', import.meta.url);
 const parts = [];
-for (const file of ['shortcuts', 'preferences', 'client']) {
+for (const file of ['shortcuts', 'preferences', 'settings', 'client']) {
   const source = await readFile(new URL(`src/${file}.js`, root), 'utf8');
   parts.push(source.replace(/^import .*;\n/gm, '').replace(/^export /gm, ''));
 }
