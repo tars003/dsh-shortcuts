@@ -1,0 +1,4 @@
+# Profile-wide browser feature, not an agent-preset contribution.
+- insert:
+    - id: dsh-shortcuts
+      name: dsh-shortcuts

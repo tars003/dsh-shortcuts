@@ -1,0 +1,35 @@
+{
+  "name": "dsh-shortcuts",
+  "version": "0.1.0",
+  "description": "Configurable keyboard shortcuts for the left and right sidebars in DeepSeek Harness.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dwb-ajay/dsh-shortcuts.git"
+  },
+  "homepage": "https://github.com/dwb-ajay/dsh-shortcuts#readme",
+  "bugs": { "url": "https://github.com/dwb-ajay/dsh-shortcuts/issues" },
+  "engines": { "node": ">=22" },
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "files": ["src/index.js", "lib/client.js", "cordis.patch.yml", "README.md", "LICENSE"],
+  "keywords": ["dsh", "deepseek-harness", "dsh-plugin", "cordis", "keyboard", "shortcuts", "sidebar"],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node --test",
+    "check": "node --check src/client.js && node --check src/shortcuts.js && node --check src/preferences.js && node --check src/index.js && node --check scripts/build.mjs",
+    "prepack": "npm run check && npm test && npm run build"
+  },
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": {
+      "platform": "web",
+      "inject": ["@deepseek-ai/dsh-client-ui-layout", "@deepseek-ai/dsh-client-ui-sidebar-right", "@deepseek-ai/dsh-client-ui-settings-general"]
+    }
+  }
+}
