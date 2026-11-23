@@ -46,3 +46,41 @@ test('Codex account-launcher owner receives its explicitly supported open-root e
   assert.equal(openSettings(root), false);
   assert.equal(called, false);
 });
+
+function shellFixture({ expanded = false, disabled = false, itemDeferred = true } = {}) {
+  let menuClicks = 0; let itemClicks = 0; let pending = null; let itemVisible = !itemDeferred;
+  const item = {
+    querySelector: (selector) => selector.includes('settings-outline') ? {} : null,
+    click() { itemClicks++; },
+  };
+  const trigger = {
+    disabled, click() { menuClicks++; pending?.(); },
+    getAttribute: (name) => name === 'aria-label' ? 'Account menu' : String(expanded),
+    querySelector: () => null,
+  };
+  const root = {
+    querySelector: () => null,
+    querySelectorAll: (selector) => selector.startsWith('button') ? [trigger]
+      : itemVisible ? [item] : [],
+  };
+  globalThis.requestAnimationFrame = (callback) => { pending = callback; };
+  const flush = () => { itemVisible = true; for (let i = 0; i < 5 && pending; i++) { const next = pending; pending = null; next(); } };
+  return { root, flush, menuClicks: () => menuClicks, itemClicks: () => itemClicks };
+}
+
+test('Settings adapter opens the shell account menu and its Settings item on 0.2.x', () => {
+  const shell = shellFixture();
+  assert.equal(openSettings(shell.root), true);
+  assert.equal(shell.menuClicks(), 1);
+  assert.equal(shell.itemClicks(), 0); // The menu renders after the click.
+  shell.flush();
+  assert.equal(shell.itemClicks(), 1);
+  const open = shellFixture({ expanded: true, itemDeferred: false });
+  assert.equal(openSettings(open.root), true);
+  assert.equal(open.menuClicks(), 0);
+  assert.equal(open.itemClicks(), 1);
+  assert.equal(openSettings(shellFixture({ disabled: true }).root), false);
+  assert.equal(openSettings({ querySelector: () => null, querySelectorAll: () => [] }), false);
+  assert.equal(openSettings({ querySelector: () => null }), false);
+  delete globalThis.requestAnimationFrame;
+});

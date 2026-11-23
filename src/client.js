@@ -1,4 +1,4 @@
-import { DEFAULTS, ACTIONS, validateBindings, createShortcutHandler, recordShortcut, displayShortcut } from './shortcuts.js';
+import { DEFAULTS, ACTIONS, validateBindings, createShortcutHandler, recordShortcut, displayShortcut, claimedByFramework } from './shortcuts.js';
 import { STORAGE_KEY, decodePreferences, loadPreferences, savePreferences } from './preferences.js';
 import { openSettings } from './settings.js';
 
@@ -8,6 +8,8 @@ export function apply(ctx) {
   const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.userAgentData?.platform ?? navigator.platform ?? '');
   let storage;
   try { storage = window.localStorage; } catch { /* Defaults work without storage. */ }
+  // DSH 0.2.x provides the client shortcut registry; 0.1.x does not.
+  const shortcuts = ctx.get('shortcuts');
   let bindings = loadPreferences(storage, isMac);
   const subscribers = new Set();
   let recordingActive = false;
@@ -29,7 +31,12 @@ export function apply(ctx) {
     for (const notify of subscribers) notify();
   };
   ctx.effect(() => {
-    const onKey = (event) => { if (!recordingActive) handler(event); };
+    // Let the framework's own registry keep its chords: both handlers running
+    // would toggle twice and look like no response at all.
+    const onKey = (event) => {
+      if (recordingActive || claimedByFramework(shortcuts, event, isMac)) return;
+      handler(event);
+    };
     const onStorage = (event) => {
       if ((event.key === STORAGE_KEY || event.key === null) && event.storageArea === storage) update(decodePreferences(event.newValue, isMac));
     };
@@ -151,7 +158,9 @@ export function apply(ctx) {
         h('p', { role: failed ? 'alert' : 'status', 'aria-live': 'polite' }, recording && !feedback ? 'Listening for your key combination…' : feedback)),
       h('p', null, 'Changes are saved only in this browser. Some browser or operating-system shortcuts cannot be overridden. Editors and terminals keep combinations they already handle.'));
   }
-  slots.inject('settings.section', () => slots.register({
-    name: 'settings.section', id: 'dsh-shortcuts', order: 30, label: 'Keyboard shortcuts',
+  // 0.2.x renamed the settings row slot; 0.1.x only has settings.section.
+  const slot = shortcuts ? 'settings.general.item' : 'settings.section';
+  slots.inject(slot, () => slots.register({
+    name: slot, id: 'dsh-shortcuts', order: 30, label: 'Keyboard shortcuts',
   }, ShortcutSettings));
 }

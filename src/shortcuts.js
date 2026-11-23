@@ -95,6 +95,33 @@ export function matchesShortcut(event, shortcut, allowRepeat = false) {
     && Boolean(event.shiftKey) === shortcut.shift;
 }
 
+// DSH 0.2.x ships a client shortcut registry. A chord that registry already
+// owns must not also run here, or the two handlers cancel out (double toggle).
+export function describeEventBinding(event, isMac = false) {
+  if (typeof event?.code !== 'string' || !event.code) return null;
+  const modifiers = [];
+  if (isMac) {
+    if (event.metaKey) modifiers.push('primary');
+    if (event.ctrlKey) modifiers.push('control');
+  } else {
+    if (event.ctrlKey) modifiers.push('primary');
+    if (event.metaKey) modifiers.push('meta');
+  }
+  if (event.altKey) modifiers.push('alt');
+  if (event.shiftKey) modifiers.push('shift');
+  return { code: event.code, modifiers };
+}
+
+export function claimedByFramework(shortcuts, event, isMac = false) {
+  if (!shortcuts || typeof shortcuts.describeBinding !== 'function') return false;
+  const binding = describeEventBinding(event, isMac);
+  if (!binding) return false;
+  try {
+    const described = shortcuts.describeBinding(binding);
+    return (described?.conflicts?.length ?? 0) > 0;
+  } catch { return false; }
+}
+
 // Return false for unavailable actions: do not swallow a browser shortcut then.
 export function createShortcutHandler(bindings, actions, isMac = false) {
   const parsed = Object.fromEntries(ACTIONS.map((action) => [action, parseShortcut(bindings[action] ?? DEFAULTS[action], isMac)]));

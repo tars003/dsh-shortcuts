@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process';
 execFileSync(process.execPath, ['scripts/build.mjs'], { cwd: new URL('../', import.meta.url) });
 const source = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8');
 
-function setup({ mac = false, storageBlocked = false, raw, noSlots = false } = {}) {
+function setup({ mac = false, storageBlocked = false, raw, noSlots = false, framework } = {}) {
   let plugin; let renderer; let cursor = 0;
   const states = []; const effects = []; const pending = [];
   let left = 0; let right = 0; let settings = 0;
@@ -45,8 +45,8 @@ function setup({ mac = false, storageBlocked = false, raw, noSlots = false } = {
   const ctx = {
     layout: { toggleSidebar() { left++; } }, sidebarRight: { toggleExpanded() { right++; } },
     effect: (setup) => { disposers.push(setup()); },
-    get: (key) => key === 'slots' && !noSlots ? {
-      inject(name, callback) { assert.equal(name, 'settings.section'); callback(); },
+    get: (key) => key === 'shortcuts' ? framework : key === 'slots' && !noSlots ? {
+      inject(name, callback) { assert.equal(name, framework ? 'settings.general.item' : 'settings.section'); callback(); },
       register(options, component) { assert.equal(options.id, 'dsh-shortcuts'); renderer = component; },
     } : undefined,
   };
@@ -150,4 +150,26 @@ test('blocked storage uses defaults and disposal while recording removes capture
   assert.equal(app.fire({}, app.win).defaultPrevented, false);
   const headless = setup({ noSlots: true });
   assert.equal(headless.fire().defaultPrevented, true); headless.dispose();
+});
+
+test('chords the DSH 0.2.x framework already owns are left to it', () => {
+  const asked = [];
+  const framework = {
+    describeBinding(binding) {
+      asked.push(binding);
+      if (binding.code === 'Unknown') throw new Error('invalid code');
+      // The framework binds primary+shift+B itself on this platform.
+      const owned = binding.modifiers.includes('shift') && binding.modifiers.includes('primary');
+      return { binding: null, keys: [], issue: null, conflicts: owned ? ['sidebar.right.toggle'] : [] };
+    },
+  };
+  const app = setup({ framework });
+  assert.equal(app.fire({ shiftKey: true }).defaultPrevented, false);
+  assert.deepEqual(app.counts(), [0, 0, 0]);
+  assert.equal(app.fire().defaultPrevented, true); // primary+B stays ours
+  assert.deepEqual(app.counts(), [1, 0, 0]);
+  assert.equal(app.fire({ key: ',', code: 'Comma' }).defaultPrevented, true);
+  assert.equal(app.fire({ key: 'q', code: 'Unknown', altKey: true }).defaultPrevented, false);
+  assert.ok(asked.every((binding) => typeof binding.code === 'string' && Array.isArray(binding.modifiers)));
+  app.dispose();
 });

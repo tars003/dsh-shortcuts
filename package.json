@@ -1,6 +1,6 @@
 {
   "name": "dsh-shortcuts",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Record keyboard shortcuts for sidebars and Settings in DeepSeek Harness.",
   "type": "module",
   "license": "MIT",
@@ -9,16 +9,35 @@
     "url": "git+https://github.com/dwb-ajay/dsh-shortcuts.git"
   },
   "homepage": "https://github.com/dwb-ajay/dsh-shortcuts#readme",
-  "bugs": { "url": "https://github.com/dwb-ajay/dsh-shortcuts/issues" },
-  "engines": { "node": ">=22" },
+  "bugs": {
+    "url": "https://github.com/dwb-ajay/dsh-shortcuts/issues"
+  },
+  "engines": {
+    "node": ">=22",
+    "dsh": ">=0.1.5-rc.1 <0.3.0-0"
+  },
   "main": "./src/index.js",
   "exports": {
     ".": "./src/index.js",
     "./client": "./lib/client.js",
     "./package.json": "./package.json"
   },
-  "files": ["src/index.js", "lib/client.js", "cordis.patch.yml", "README.md", "LICENSE"],
-  "keywords": ["dsh", "deepseek-harness", "dsh-plugin", "cordis", "keyboard", "shortcuts", "sidebar"],
+  "files": [
+    "src/index.js",
+    "lib/client.js",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "dsh-plugin",
+    "cordis",
+    "keyboard",
+    "shortcuts",
+    "sidebar"
+  ],
   "scripts": {
     "build": "node scripts/build.mjs",
     "test": "node --test",
@@ -26,10 +45,16 @@
     "prepack": "npm run check && npm test && npm run build"
   },
   "dsh": {
-    "bundle": { "patch": "./cordis.patch.yml" },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
     "client": {
       "platform": "web",
-      "inject": ["@deepseek-ai/dsh-client-ui-layout", "@deepseek-ai/dsh-client-ui-sidebar-right", "@deepseek-ai/dsh-client-ui-settings-general"]
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-sidebar-right",
+        "@deepseek-ai/dsh-client-ui-settings-general"
+      ]
     }
   }
 }

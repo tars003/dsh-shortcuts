@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULTS, parseShortcut, validateBindings, matchesShortcut, createShortcutHandler, recordShortcut, displayShortcut } from '../src/shortcuts.js';
+import { DEFAULTS, parseShortcut, validateBindings, matchesShortcut, createShortcutHandler, recordShortcut, displayShortcut, claimedByFramework, describeEventBinding } from '../src/shortcuts.js';
 import { decodePreferences, loadPreferences, savePreferences, STORAGE_KEY } from '../src/preferences.js';
 
 function key(overrides = {}) {
@@ -113,4 +113,18 @@ test('storage failures or corrupted/unknown records fall back without throwing',
   assert.deepEqual(loadPreferences(storage), DEFAULTS);
   assert.deepEqual(loadPreferences(undefined), DEFAULTS);
   assert.throws(() => savePreferences(storage, DEFAULTS), /blocked/);
+});
+
+test('framework ownership is read from the registry and never throws', () => {
+  const calls = [];
+  const service = { describeBinding(binding) { calls.push(binding); return { conflicts: ['sidebar.right.toggle'] }; } };
+  const event = { code: 'KeyB', ctrlKey: true, metaKey: false, altKey: false, shiftKey: true };
+  assert.equal(claimedByFramework(service, event, false), true);
+  assert.deepEqual(calls[0], { code: 'KeyB', modifiers: ['primary', 'shift'] });
+  assert.equal(claimedByFramework(service, { key: 'b' }, false), false);
+  assert.equal(claimedByFramework(undefined, event, false), false);
+  assert.equal(claimedByFramework({ describeBinding() { throw new Error('bad'); } }, event, false), false);
+  assert.equal(claimedByFramework({ describeBinding: () => ({ conflicts: [] }) }, event, false), false);
+  assert.deepEqual(describeEventBinding({ code: 'KeyB', ctrlKey: true, metaKey: true, altKey: true, shiftKey: false }, true),
+    { code: 'KeyB', modifiers: ['primary', 'control', 'alt'] });
 });
