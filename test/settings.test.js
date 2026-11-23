@@ -84,3 +84,20 @@ test('Settings adapter opens the shell account menu and its Settings item on 0.2
   assert.equal(openSettings({ querySelector: () => null }), false);
   delete globalThis.requestAnimationFrame;
 });
+
+test('an empty 0.2.x sidebar seat falls through to the account menu', () => {
+  let clicks = 0;
+  const seat = { querySelector: () => null, contains: () => false };
+  const trigger = {
+    disabled: false, click() { clicks++; },
+    getAttribute: (name) => name === 'aria-label' ? 'Account menu' : 'false',
+    querySelector: () => null,
+  };
+  const item = { querySelector: (selector) => selector.includes('settings-outline') ? {} : null, click() { clicks++; } };
+  const root = {
+    querySelector: (selector) => selector.includes('sidebar.settings') ? seat : null,
+    querySelectorAll: (selector) => selector.startsWith('button') ? [trigger] : [item],
+  };
+  assert.equal(openSettings(root), true);
+  assert.equal(clicks, 2); // menu trigger, then the Settings item
+});
